@@ -14,10 +14,9 @@ enum direction {
 };
 
 struct rope_state_t {
-    int head_x;
-    int head_y;
-    int tail_x;
-    int tail_y;
+    int length;
+    int *segment_x;
+    int *segment_y;
     size_t visited;
     size_t rows;
     size_t cols;
@@ -29,6 +28,8 @@ void free_rope_state(struct rope_state_t *rope_state) {
         free(rope_state->matrix[i]);
     }
     free(rope_state->matrix);
+    free(rope_state->segment_x);
+    free(rope_state->segment_y);
     free(rope_state);
 }
 
@@ -60,79 +61,90 @@ void parse_command(char *buffer, enum direction *direction, int *steps) {
     switch (buffer[0]) {
     case 'U':
         *direction = UP;
-        printf("up ");
+        // printf("up ");
         break;
     case 'D':
         *direction = DOWN;
-        printf("down ");
+        // printf("down ");
         break;
     case 'L':
         *direction = LEFT;
-        printf("left ");
+        // printf("left ");
         break;
     case 'R':
         *direction = RIGHT;
-        printf("right ");
+        // printf("right ");
         break;
     default:
         *direction = ERROR;
-        printf("ERROR ");
+        // printf("ERROR ");
         break;
     }
 
     *steps = atoi(&buffer[2]);
-    printf("%i steps\n", *steps);
+    // printf("%i steps\n", *steps);
 }
 
 void perform_command(struct rope_state_t *rope_state, enum direction direction, int steps) {
-    for (size_t i = 0; i < steps; i++) {
+    size_t i,j;
+    for (i = 0; i < steps; i++) {
         switch (direction) {
         case UP:
-            rope_state->head_y += 1;
-            if (rope_state->head_y > rope_state->tail_y + 1) {
-                rope_state->tail_y = rope_state->head_y - 1;
-                rope_state->tail_x = rope_state->head_x;
-            }
+            rope_state->segment_y[0] += 1;
             break;
         case DOWN:
-            rope_state->head_y -= 1;
-            if (rope_state->head_y < rope_state->tail_y - 1) {
-                rope_state->tail_y = rope_state->head_y + 1;
-                rope_state->tail_x = rope_state->head_x;
-            }
+            rope_state->segment_y[0] -= 1;
             break;
         case LEFT:
-            rope_state->head_x -= 1;
-            if (rope_state->head_x < rope_state->tail_x - 1) {
-                rope_state->tail_x = rope_state->head_x + 1;
-                rope_state->tail_y = rope_state->head_y;
-            }
+            rope_state->segment_x[0] -= 1;
             break;
         case RIGHT:
-            rope_state->head_x += 1;
-            if (rope_state->head_x > rope_state->tail_x + 1) {
-                rope_state->tail_x = rope_state->head_x - 1;
-                rope_state->tail_y = rope_state->head_y;
-            }
+            rope_state->segment_x[0] += 1;
             break;
         default:
             exit(1);
             break;
         }
 
-        if (rope_state->head_x >= rope_state->cols || rope_state->head_y >= rope_state->rows) {
+        for (j = 1; j < rope_state->length; j++) {
+            if (rope_state->segment_y[j - 1] > rope_state->segment_y[j] + 1) {
+                rope_state->segment_y[j] = rope_state->segment_y[j - 1] - 1;
+                rope_state->segment_x[j] = rope_state->segment_x[j - 1];
+            }
+            if (rope_state->segment_y[j - 1] < rope_state->segment_y[j] - 1) {
+                rope_state->segment_y[j] = rope_state->segment_y[j - 1] + 1;
+                rope_state->segment_x[j] = rope_state->segment_x[j - 1];
+            }
+            if (rope_state->segment_x[j - 1] < rope_state->segment_x[j] - 1) {
+                rope_state->segment_x[j] = rope_state->segment_x[j - 1] + 1;
+                rope_state->segment_y[j] = rope_state->segment_y[j - 1];
+            }
+            if (rope_state->segment_x[j - 1] > rope_state->segment_x[j] + 1) {
+                rope_state->segment_x[j] = rope_state->segment_x[j - 1] - 1;
+                rope_state->segment_y[j] = rope_state->segment_y[j - 1];
+            }
+        }
+
+        if (rope_state->segment_x[0] >= rope_state->cols || rope_state->segment_y[0] >= rope_state->rows) {
+            for (j = 0; j < rope_state->length; j++) {
+                printf("%lu : (%d, %d)\n", j, rope_state->segment_x[j], rope_state->segment_y[j]);
+            }
+            printf("out of range\n");
             exit(1);
         }
-        if (!rope_state->matrix[rope_state->tail_y][rope_state->tail_x]) {
-            rope_state->matrix[rope_state->tail_y][rope_state->tail_x] = 1;
+        if (!rope_state->matrix[rope_state->segment_y[rope_state->length - 1]][rope_state->segment_x[rope_state->length - 1]]) {
+            rope_state->matrix[rope_state->segment_y[rope_state->length - 1]][rope_state->segment_x[rope_state->length - 1]] = 1;
             rope_state->visited++;
         }
     }
-    printf("H : (%d, %d)\n", rope_state->head_x, rope_state->head_y);
-    printf("T : (%d, %d)\n", rope_state->tail_x, rope_state->tail_y);
+    // for (j = 0; j < rope_state->length; j++) {
+    //     printf("%lu : (%d, %d)\n", j, rope_state->segment_x[j], rope_state->segment_y[j]);
+    // }
 }
 
 int main(void) {
+    size_t i;
+
     struct rope_state_t *rope_state = (struct rope_state_t *) calloc(1, sizeof(struct rope_state_t));
     enum direction direction = 0;
     int steps = 0;
@@ -140,13 +152,16 @@ int main(void) {
 
     rope_state->rows = MATRIX_ROWS;
     rope_state->cols = MATRIX_COLS;
-    rope_state->head_y = MATRIX_ROWS / 2;
-    rope_state->head_x = MATRIX_COLS / 2;
-    rope_state->tail_y = MATRIX_ROWS / 2;
-    rope_state->tail_x = MATRIX_COLS / 2;
+    rope_state->length = 10;
+    rope_state->segment_x = (int *) calloc(rope_state->length, sizeof(int));
+    rope_state->segment_y = (int *) calloc(rope_state->length, sizeof(int));
+    for (i = 0; i < rope_state->length; i++) {
+        rope_state->segment_x[i] = MATRIX_COLS / 2;
+        rope_state->segment_y[i] = MATRIX_ROWS / 2;
+    }
     rope_state->matrix = (int **) calloc(rope_state->rows, sizeof(int *));
 
-    for (size_t i = 0; i < rope_state->rows; i++) {
+    for (i = 0; i < rope_state->rows; i++) {
         rope_state->matrix[i] = (int *) calloc(rope_state->cols, sizeof(int));
     }
 
