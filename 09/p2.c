@@ -61,32 +61,32 @@ void parse_command(char *buffer, enum direction *direction, int *steps) {
     switch (buffer[0]) {
     case 'U':
         *direction = UP;
-        // printf("up ");
         break;
     case 'D':
         *direction = DOWN;
-        // printf("down ");
         break;
     case 'L':
         *direction = LEFT;
-        // printf("left ");
         break;
     case 'R':
         *direction = RIGHT;
-        // printf("right ");
         break;
     default:
         *direction = ERROR;
-        // printf("ERROR ");
         break;
     }
 
     *steps = atoi(&buffer[2]);
-    // printf("%i steps\n", *steps);
+}
+
+int segments_touching(int x0, int y0, int x1, int y1) {
+    return !(x0 < x1 - 1 || x0 > x1 + 1 || y0 < y1 - 1 || y0 > y1 + 1);
 }
 
 void perform_command(struct rope_state_t *rope_state, enum direction direction, int steps) {
     size_t i,j;
+    int x0, y0, x1, y1;
+
     for (i = 0; i < steps; i++) {
         switch (direction) {
         case UP:
@@ -107,21 +107,20 @@ void perform_command(struct rope_state_t *rope_state, enum direction direction, 
         }
 
         for (j = 1; j < rope_state->length; j++) {
-            if (rope_state->segment_y[j - 1] > rope_state->segment_y[j] + 1) {
-                rope_state->segment_y[j] = rope_state->segment_y[j - 1] - 1;
-                rope_state->segment_x[j] = rope_state->segment_x[j - 1];
-            }
-            if (rope_state->segment_y[j - 1] < rope_state->segment_y[j] - 1) {
-                rope_state->segment_y[j] = rope_state->segment_y[j - 1] + 1;
-                rope_state->segment_x[j] = rope_state->segment_x[j - 1];
-            }
-            if (rope_state->segment_x[j - 1] < rope_state->segment_x[j] - 1) {
-                rope_state->segment_x[j] = rope_state->segment_x[j - 1] + 1;
-                rope_state->segment_y[j] = rope_state->segment_y[j - 1];
-            }
-            if (rope_state->segment_x[j - 1] > rope_state->segment_x[j] + 1) {
-                rope_state->segment_x[j] = rope_state->segment_x[j - 1] - 1;
-                rope_state->segment_y[j] = rope_state->segment_y[j - 1];
+            x0 = rope_state->segment_x[j - 1];
+            y0 = rope_state->segment_y[j - 1];
+            x1 = rope_state->segment_x[j];
+            y1 = rope_state->segment_y[j];
+
+            if (segments_touching(x0, y0, x1, y1)) {
+                continue;
+            } else if (x0 == x1) {
+                rope_state->segment_y[j] += (y0 > y1 ? 1 : -1);
+            } else if (y0 == y1) {
+                rope_state->segment_x[j] += (x0 > x1 ? 1 : -1);
+            } else {
+                rope_state->segment_x[j] += (x0 > x1 ? 1 : -1);
+                rope_state->segment_y[j] += (y0 > y1 ? 1 : -1);
             }
         }
 
@@ -137,9 +136,6 @@ void perform_command(struct rope_state_t *rope_state, enum direction direction, 
             rope_state->visited++;
         }
     }
-    // for (j = 0; j < rope_state->length; j++) {
-    //     printf("%lu : (%d, %d)\n", j, rope_state->segment_x[j], rope_state->segment_y[j]);
-    // }
 }
 
 int main(void) {
