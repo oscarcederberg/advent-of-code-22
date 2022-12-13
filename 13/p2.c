@@ -12,6 +12,7 @@ enum value_type {
 
 struct value_t {
     struct value_t *parent;
+    int is_divider;
     enum value_type type;
     int value;
     int count;
@@ -119,9 +120,11 @@ struct value_t *parse_packet(char *buffer) {
     return NULL;
 }
 
-int compare_pair(struct value_t *left, struct value_t *right) {
+int compare_pair(const void *first, const void *second) {
     size_t index = 0;
     struct value_t *temp;
+    struct value_t *left = *((struct value_t **) first);
+    struct value_t *right = *((struct value_t **) second);
 
     if (left->count == 0 && right->count == 0) {
         return 1;
@@ -133,9 +136,9 @@ int compare_pair(struct value_t *left, struct value_t *right) {
             right = right->parent;
 
             if (left == NULL) {
-                return 1;
+                return -1;
             } else if (right == NULL) {
-                return 0;
+                return 1;
             }
 
             if (left->value != right->value) {
@@ -144,15 +147,19 @@ int compare_pair(struct value_t *left, struct value_t *right) {
             index = left->value;
             continue;
         } if (index == left->count) {
-            return 1;
+            return -1;
         } else if (index == right->count) {
-            return 0;
+            return 1;
         }
 
         for (index = index; index < left->count && index < right->count; index++) {
             if (left->values[index]->type == NUMBER && right->values[index]->type == NUMBER) {
                 if (left->values[index]->value != right->values[index]->value) {
-                    return left->values[index]->value < right->values[index]->value;
+                    if (left->values[index]->value < right->values[index]->value) {
+                        return -1;
+                    } else {
+                        return 1;
+                    }
                 }
                 continue;
             } else if (left->values[index]->type != LIST) {
@@ -186,27 +193,55 @@ int compare_pair(struct value_t *left, struct value_t *right) {
 }
 
 int main(void) {
-    size_t sum_of_right_ordered_indicies = 0;
-    size_t pairs = 0;
-    struct value_t *left;
-    struct value_t *right;
+    size_t product_of_divider_indicies = 1;
+    size_t num_packets = 2;
+    struct value_t **packets = calloc(num_packets, sizeof(struct value_t *));
+    struct value_t *left = calloc(1, sizeof(struct value_t));
+    struct value_t *right = calloc(1, sizeof(struct value_t));
     char left_buffer[MAX_CHARS] = {0, };
     char right_buffer[MAX_CHARS] = {0, };
 
+    left->type = LIST;
+    left->is_divider = 1;
+    left->count = 1;
+    left->values = calloc(1, sizeof(struct value_t *));
+    left->values[0] = calloc(1, sizeof(struct value_t));
+    left->values[0]->type = NUMBER;
+    left->values[0]->value = 2;
+
+    right->type = LIST;
+    right->is_divider = 1;
+    right->count = 1;
+    right->values = calloc(1, sizeof(struct value_t *));
+    right->values[0] = calloc(1, sizeof(struct value_t));
+    right->values[0]->type = NUMBER;
+    right->values[0]->value = 6;
+
+    packets[0] = left;
+    packets[1] = right;
+
     while (fgets(left_buffer, MAX_CHARS, stdin) != NULL &&
         fgets(right_buffer, MAX_CHARS, stdin) != NULL) {
-        pairs++;
+        num_packets += 2;
+        packets = (struct value_t **) realloc(packets, num_packets * sizeof(struct void_t *));
 
         left = parse_packet(left_buffer);
         right = parse_packet(right_buffer);
-        if (compare_pair(left, right)) {
-            sum_of_right_ordered_indicies += pairs;
-        }
+        packets[num_packets - 2] = left;
+        packets[num_packets - 1] = right;
 
-        free_packet(left);
-        free_packet(right);
         fgets(left_buffer, MAX_CHARS, stdin); // skip a line
     }
 
-    printf("there were %lu pairs with a sum of %lu\n", pairs, sum_of_right_ordered_indicies);
+    qsort(packets, num_packets, sizeof(struct value_t *), compare_pair);
+
+    for (size_t i = 0; i < num_packets; i++) {
+        if (packets[i]->is_divider) {
+            product_of_divider_indicies *= (i + 1);
+        }
+        free_packet(packets[i]);
+    }
+    free(packets);
+
+    printf("the decoder key for the distress signal is %lu\n", product_of_divider_indicies);
 }
